@@ -23,7 +23,7 @@
 #include "BLT_translation.h"
 
 #include "DNA_color_types.h"
-#include "DNA_gpencil_types.h"
+#include "DNA_gpencil_legacy_types.h"
 #include "DNA_meshdata_types.h"
 #include "DNA_object_types.h"
 #include "DNA_scene_types.h"
@@ -33,8 +33,8 @@
 
 #include "BKE_colortools.h"
 #include "BKE_context.h"
-#include "BKE_gpencil.h"
-#include "BKE_gpencil_geom.h"
+#include "BKE_gpencil_geom_legacy.h"
+#include "BKE_gpencil_legacy.h"
 #include "BKE_report.h"
 
 #include "UI_interface.h"
@@ -486,15 +486,20 @@ static void gpencil_interpolate_set_points(bContext *C, tGPDinterpolate *tgpi)
       continue;
     }
 
-    /* create temp data for each layer */
+    bGPDframe *gpf_prv = gpencil_get_previous_keyframe(gpl, scene->r.cfra, exclude_breakdowns);
+    if (gpf_prv == NULL) {
+      continue;
+    }
+    bGPDframe *gpf_next = gpencil_get_next_keyframe(gpl, scene->r.cfra, exclude_breakdowns);
+    if (gpf_next == NULL) {
+      continue;
+    }
+
+    /* Create temp data for each layer. */
     tgpil = MEM_callocN(sizeof(tGPDinterpolate_layer), "GPencil Interpolate Layer");
-
     tgpil->gpl = gpl;
-    bGPDframe *gpf = gpencil_get_previous_keyframe(gpl, scene->r.cfra, exclude_breakdowns);
-    tgpil->prevFrame = BKE_gpencil_frame_duplicate(gpf, true);
-
-    gpf = gpencil_get_next_keyframe(gpl, scene->r.cfra, exclude_breakdowns);
-    tgpil->nextFrame = BKE_gpencil_frame_duplicate(gpf, true);
+    tgpil->prevFrame = BKE_gpencil_frame_duplicate(gpf_prv, true);
+    tgpil->nextFrame = BKE_gpencil_frame_duplicate(gpf_next, true);
 
     BLI_addtail(&tgpi->ilayers, tgpil);
 

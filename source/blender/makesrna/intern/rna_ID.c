@@ -40,7 +40,7 @@ const EnumPropertyItem rna_enum_id_type_items[] = {
     {ID_CU_LEGACY, "CURVE", ICON_CURVE_DATA, "Curve", ""},
     {ID_CV, "CURVES", ICON_CURVES_DATA, "Curves", ""},
     {ID_VF, "FONT", ICON_FONT_DATA, "Font", ""},
-    {ID_GD, "GREASEPENCIL", ICON_GREASEPENCIL, "Grease Pencil", ""},
+    {ID_GD_LEGACY, "GREASEPENCIL", ICON_GREASEPENCIL, "Grease Pencil", ""},
     {ID_IM, "IMAGE", ICON_IMAGE_DATA, "Image", ""},
     {ID_KE, "KEY", ICON_SHAPEKEY_DATA, "Key", ""},
     {ID_LT, "LATTICE", ICON_LATTICE_DATA, "Lattice", ""},
@@ -108,7 +108,7 @@ static const EnumPropertyItem rna_enum_override_library_property_operation_items
      "INSERT_BEFORE",
      0,
      "Insert Before",
-     "Insert a new item into collection after the one referenced in subitem_reference_name or "
+     "Insert a new item into collection before the one referenced in subitem_reference_name or "
      "_index (NOT USED)"},
     {0, NULL, 0, NULL, NULL},
 };
@@ -128,7 +128,7 @@ const struct IDFilterEnumPropertyItem rna_enum_id_type_filter_items[] = {
     {FILTER_ID_CA, "filter_camera", ICON_CAMERA_DATA, "Cameras", "Show Camera data-blocks"},
     {FILTER_ID_CF, "filter_cachefile", ICON_FILE, "Cache Files", "Show Cache File data-blocks"},
     {FILTER_ID_CU_LEGACY, "filter_curve", ICON_CURVE_DATA, "Curves", "Show Curve data-blocks"},
-    {FILTER_ID_GD,
+    {FILTER_ID_GD_LEGACY,
      "filter_grease_pencil",
      ICON_GREASEPENCIL,
      "Grease Pencil",
@@ -361,7 +361,7 @@ short RNA_type_to_ID_code(const StructRNA *type)
     return ID_CU_LEGACY;
   }
   if (base_type == &RNA_GreasePencil) {
-    return ID_GD;
+    return ID_GD_LEGACY;
   }
   if (base_type == &RNA_Collection) {
     return ID_GR;
@@ -482,7 +482,7 @@ StructRNA *ID_code_to_RNA_type(short idcode)
       return &RNA_CacheFile;
     case ID_CU_LEGACY:
       return &RNA_Curve;
-    case ID_GD:
+    case ID_GD_LEGACY:
       return &RNA_GreasePencil;
     case ID_GR:
       return &RNA_Collection;
@@ -574,6 +574,33 @@ IDProperty **rna_ID_idprops(PointerRNA *ptr)
   return &id->properties;
 }
 
+int rna_ID_is_runtime_editable(PointerRNA *ptr, const char **r_info)
+{
+  ID *id = (ID *)ptr->data;
+  /* TODO: This should be abstracted in a BKE function or define, somewhat related to #88555. */
+  if (id->tag & (LIB_TAG_NO_MAIN | LIB_TAG_TEMP_MAIN | LIB_TAG_LOCALIZED |
+                 LIB_TAG_COPIED_ON_WRITE_EVAL_RESULT | LIB_TAG_COPIED_ON_WRITE)) {
+    *r_info =
+        "Cannot edit 'runtime' status of non-blendfile data-blocks, as they are by definition "
+        "always runtime";
+    return 0;
+  }
+
+  return PROP_EDITABLE;
+}
+
+bool rna_ID_is_runtime_get(PointerRNA *ptr)
+{
+  ID *id = (ID *)ptr->data;
+  /* TODO: This should be abstracted in a BKE function or define, somewhat related to #88555. */
+  if (id->tag & (LIB_TAG_NO_MAIN | LIB_TAG_TEMP_MAIN | LIB_TAG_LOCALIZED |
+                 LIB_TAG_COPIED_ON_WRITE_EVAL_RESULT | LIB_TAG_COPIED_ON_WRITE)) {
+    return true;
+  }
+
+  return (id->tag & LIB_TAG_RUNTIME) != 0;
+}
+
 void rna_ID_fake_user_set(PointerRNA *ptr, bool value)
 {
   ID *id = (ID *)ptr->data;
@@ -603,9 +630,10 @@ IDProperty **rna_PropertyGroup_idprops(PointerRNA *ptr)
   return (IDProperty **)&ptr->data;
 }
 
-void rna_PropertyGroup_unregister(Main *UNUSED(bmain), StructRNA *type)
+bool rna_PropertyGroup_unregister(Main *UNUSED(bmain), StructRNA *type)
 {
   RNA_struct_free(&BLENDER_RNA, type);
+  return true;
 }
 
 StructRNA *rna_PropertyGroup_register(Main *UNUSED(bmain),
@@ -616,13 +644,13 @@ StructRNA *rna_PropertyGroup_register(Main *UNUSED(bmain),
                                       StructCallbackFunc UNUSED(call),
                                       StructFreeFunc UNUSED(free))
 {
-  PointerRNA dummyptr;
+  PointerRNA dummy_ptr;
 
   /* create dummy pointer */
-  RNA_pointer_create(NULL, &RNA_PropertyGroup, NULL, &dummyptr);
+  RNA_pointer_create(NULL, &RNA_PropertyGroup, NULL, &dummy_ptr);
 
   /* validate the python class */
-  if (validate(&dummyptr, data, NULL) != 0) {
+  if (validate(&dummy_ptr, data, NULL) != 0) {
     return NULL;
   }
 
@@ -794,7 +822,7 @@ static void rna_ID_override_library_operations_update(ID *id,
     return;
   }
 
-  BKE_lib_override_library_operations_create(bmain, id);
+  BKE_lib_override_library_operations_create(bmain, id, NULL);
 
   WM_main_add_notifier(NC_WM | ND_LIB_OVERRIDE_CHANGED, NULL);
 }
@@ -988,7 +1016,12 @@ static void rna_ID_user_remap(ID *id, Main *bmain, ID *new_id)
 
 static struct ID *rna_ID_make_local(struct ID *self, Main *bmain, bool UNUSED(clear_proxy))
 {
-  BKE_lib_id_make_local(bmain, self, 0);
+  if (ID_IS_LINKED(self)) {
+    BKE_lib_id_make_local(bmain, self, 0);
+  }
+  else if (ID_IS_OVERRIDE_LIBRARY_REAL(self)) {
+    BKE_lib_override_library_make_local(self);
+  }
 
   ID *ret_id = self->newid ? self->newid : self;
   BKE_id_newptr_and_tag_clear(self);
@@ -1458,6 +1491,14 @@ static void rna_def_ID_properties(BlenderRNA *brna)
   RNA_def_property_flag(prop, PROP_IDPROPERTY);
   RNA_def_property_array(prop, 1);
 
+  /* IDP_BOOLEAN */
+  prop = RNA_def_property(srna, "bool", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_flag(prop, PROP_IDPROPERTY);
+
+  prop = RNA_def_property(srna, "bool_array", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_flag(prop, PROP_IDPROPERTY);
+  RNA_def_property_array(prop, 1);
+
   /* IDP_GROUP */
   prop = RNA_def_property(srna, "group", PROP_POINTER, PROP_NONE);
   RNA_def_property_flag(prop, PROP_IDPROPERTY);
@@ -1561,7 +1602,7 @@ static void rna_def_image_preview(BlenderRNA *brna)
   RNA_def_property_boolean_funcs(prop, NULL, "rna_ImagePreview_is_image_custom_set");
   RNA_def_property_ui_text(prop,
                            "Custom Image",
-                           "True if this preview image has been modified by py script,"
+                           "True if this preview image has been modified by py script, "
                            "and is no more auto-generated by Blender");
 
   prop = RNA_def_int_vector(
@@ -1594,7 +1635,7 @@ static void rna_def_image_preview(BlenderRNA *brna)
   RNA_def_property_boolean_funcs(prop, NULL, "rna_ImagePreview_is_icon_custom_set");
   RNA_def_property_ui_text(prop,
                            "Custom Icon",
-                           "True if this preview icon has been modified by py script,"
+                           "True if this preview icon has been modified by py script, "
                            "and is no more auto-generated by Blender");
 
   prop = RNA_def_int_vector(
@@ -2029,6 +2070,17 @@ static void rna_def_ID(BlenderRNA *brna)
       "Embedded Data",
       "This data-block is not an independent one, but is actually a sub-data of another ID "
       "(typical example: root node trees or master collections)");
+
+  prop = RNA_def_property(srna, "is_runtime_data", PROP_BOOLEAN, PROP_NONE);
+  RNA_def_property_boolean_sdna(prop, NULL, "tag", LIB_TAG_RUNTIME);
+  RNA_def_property_editable_func(prop, "rna_ID_is_runtime_editable");
+  RNA_def_property_boolean_funcs(prop, "rna_ID_is_runtime_get", NULL);
+  RNA_def_property_override_flag(prop, PROPOVERRIDE_NO_COMPARISON);
+  RNA_def_property_ui_text(prop,
+                           "Runtime Data",
+                           "This data-block is runtime data, i.e. it won't be saved in .blend "
+                           "file. Note that e.g. evaluated IDs are always runtime, so this value "
+                           "is only editable for data-blocks in Main data-base");
 
   prop = RNA_def_property(srna, "tag", PROP_BOOLEAN, PROP_NONE);
   RNA_def_property_boolean_sdna(prop, NULL, "tag", LIB_TAG_DOIT);

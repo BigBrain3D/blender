@@ -175,8 +175,8 @@ static bool eyedropper_cryptomatte_sample_renderlayer_fl(RenderLayer *render_lay
     if (STRPREFIX(render_pass->name, render_pass_name_prefix) &&
         !STREQLEN(render_pass->name, render_pass_name_prefix, sizeof(render_pass->name))) {
       BLI_assert(render_pass->channels == 4);
-      const int x = (int)(fpos[0] * render_pass->rectx);
-      const int y = (int)(fpos[1] * render_pass->recty);
+      const int x = int(fpos[0] * render_pass->rectx);
+      const int y = int(fpos[1] * render_pass->recty);
       const int offset = 4 * (y * render_pass->rectx + x);
       zero_v3(r_col);
       r_col[0] = render_pass->rect[offset];
@@ -417,7 +417,7 @@ static void eyedropper_color_sample(bContext *C, Eyedropper *eye, const int m_xy
   /* Apply to property. */
   float accum_col[3];
   if (eye->accum_tot > 1) {
-    mul_v3_v3fl(accum_col, eye->accum_col, 1.0f / (float)eye->accum_tot);
+    mul_v3_v3fl(accum_col, eye->accum_col, 1.0f / float(eye->accum_tot));
   }
   else {
     copy_v3_v3(accum_col, eye->accum_col);
@@ -501,7 +501,7 @@ static int eyedropper_invoke(bContext *C, wmOperator *op, const wmEvent * /*even
   /* init */
   if (eyedropper_init(C, op)) {
     wmWindow *win = CTX_wm_window(C);
-    /* Workaround for de-activating the button clearing the cursor, see T76794 */
+    /* Workaround for de-activating the button clearing the cursor, see #76794 */
     UI_context_active_but_clear(C, win, CTX_wm_region(C));
     WM_cursor_modal_set(win, WM_CURSOR_EYEDROPPER);
 

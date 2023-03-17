@@ -5,9 +5,9 @@
  * \ingroup bke
  */
 
-#include <math.h>
-#include <stddef.h>
-#include <string.h>
+#include <cmath>
+#include <cstddef>
+#include <cstring>
 
 #include "CLG_log.h"
 
@@ -23,7 +23,7 @@
 #include "DNA_curves_types.h"
 #include "DNA_customdata_types.h"
 #include "DNA_defaults.h"
-#include "DNA_gpencil_types.h"
+#include "DNA_gpencil_legacy_types.h"
 #include "DNA_material_types.h"
 #include "DNA_mesh_types.h"
 #include "DNA_meshdata_types.h"
@@ -48,7 +48,7 @@
 #include "BKE_curve.h"
 #include "BKE_displist.h"
 #include "BKE_editmesh.h"
-#include "BKE_gpencil.h"
+#include "BKE_gpencil_legacy.h"
 #include "BKE_icons.h"
 #include "BKE_idtype.h"
 #include "BKE_image.h"
@@ -56,7 +56,7 @@
 #include "BKE_lib_query.h"
 #include "BKE_main.h"
 #include "BKE_material.h"
-#include "BKE_mesh.h"
+#include "BKE_mesh.hh"
 #include "BKE_node.h"
 #include "BKE_node_runtime.hh"
 #include "BKE_object.h"
@@ -243,33 +243,33 @@ static void material_blend_read_expand(BlendExpander *expander, ID *id)
 }
 
 IDTypeInfo IDType_ID_MA = {
-    /* id_code */ ID_MA,
-    /* id_filter */ FILTER_ID_MA,
-    /* main_listbase_index */ INDEX_ID_MA,
-    /* struct_size */ sizeof(Material),
-    /* name */ "Material",
-    /* name_plural */ "materials",
-    /* translation_context */ BLT_I18NCONTEXT_ID_MATERIAL,
-    /* flags */ IDTYPE_FLAGS_APPEND_IS_REUSABLE,
-    /* asset_type_info */ nullptr,
+    /*id_code*/ ID_MA,
+    /*id_filter*/ FILTER_ID_MA,
+    /*main_listbase_index*/ INDEX_ID_MA,
+    /*struct_size*/ sizeof(Material),
+    /*name*/ "Material",
+    /*name_plural*/ "materials",
+    /*translation_context*/ BLT_I18NCONTEXT_ID_MATERIAL,
+    /*flags*/ IDTYPE_FLAGS_APPEND_IS_REUSABLE,
+    /*asset_type_info*/ nullptr,
 
-    /* init_data */ material_init_data,
-    /* copy_data */ material_copy_data,
-    /* free_data */ material_free_data,
-    /* make_local */ nullptr,
-    /* foreach_id */ material_foreach_id,
-    /* foreach_cache */ nullptr,
-    /* foreach_path */ nullptr,
-    /* owner_pointer_get */ nullptr,
+    /*init_data*/ material_init_data,
+    /*copy_data*/ material_copy_data,
+    /*free_data*/ material_free_data,
+    /*make_local*/ nullptr,
+    /*foreach_id*/ material_foreach_id,
+    /*foreach_cache*/ nullptr,
+    /*foreach_path*/ nullptr,
+    /*owner_pointer_get*/ nullptr,
 
-    /* blend_write */ material_blend_write,
-    /* blend_read_data */ material_blend_read_data,
-    /* blend_read_lib */ material_blend_read_lib,
-    /* blend_read_expand */ material_blend_read_expand,
+    /*blend_write*/ material_blend_write,
+    /*blend_read_data*/ material_blend_read_data,
+    /*blend_read_lib*/ material_blend_read_lib,
+    /*blend_read_expand*/ material_blend_read_expand,
 
-    /* blend_read_undo_preserve */ nullptr,
+    /*blend_read_undo_preserve*/ nullptr,
 
-    /* lib_override_apply_post */ nullptr,
+    /*lib_override_apply_post*/ nullptr,
 };
 
 void BKE_gpencil_material_attr_init(Material *ma)
@@ -328,7 +328,7 @@ Material ***BKE_object_material_array_p(Object *ob)
     MetaBall *mb = static_cast<MetaBall *>(ob->data);
     return &(mb->mat);
   }
-  if (ob->type == OB_GPENCIL) {
+  if (ob->type == OB_GPENCIL_LEGACY) {
     bGPdata *gpd = static_cast<bGPdata *>(ob->data);
     return &(gpd->mat);
   }
@@ -361,7 +361,7 @@ short *BKE_object_material_len_p(Object *ob)
     MetaBall *mb = static_cast<MetaBall *>(ob->data);
     return &(mb->totcol);
   }
-  if (ob->type == OB_GPENCIL) {
+  if (ob->type == OB_GPENCIL_LEGACY) {
     bGPdata *gpd = static_cast<bGPdata *>(ob->data);
     return &(gpd->totcol);
   }
@@ -392,7 +392,7 @@ Material ***BKE_id_material_array_p(ID *id)
       return &(((Curve *)id)->mat);
     case ID_MB:
       return &(((MetaBall *)id)->mat);
-    case ID_GD:
+    case ID_GD_LEGACY:
       return &(((bGPdata *)id)->mat);
     case ID_CV:
       return &(((Curves *)id)->mat);
@@ -418,7 +418,7 @@ short *BKE_id_material_len_p(ID *id)
       return &(((Curve *)id)->totcol);
     case ID_MB:
       return &(((MetaBall *)id)->totcol);
-    case ID_GD:
+    case ID_GD_LEGACY:
       return &(((bGPdata *)id)->totcol);
     case ID_CV:
       return &(((Curves *)id)->totcol);
@@ -480,7 +480,7 @@ bool BKE_object_material_slot_used(Object *object, short actcol)
     case ID_MB:
       /* Meta-elements don't support materials at the moment. */
       return false;
-    case ID_GD:
+    case ID_GD_LEGACY:
       return BKE_gpencil_material_index_used((bGPdata *)ob_data, actcol - 1);
     default:
       return false;
@@ -588,7 +588,7 @@ void BKE_id_material_append(Main *bmain, ID *id, Material *ma)
 
 Material *BKE_id_material_pop(Main *bmain, ID *id, int index_i)
 {
-  short index = (short)index_i;
+  short index = short(index_i);
   Material *ret = nullptr;
   Material ***matar;
   if ((matar = BKE_id_material_array_p(id))) {
@@ -850,7 +850,7 @@ void BKE_object_material_resize(Main *bmain, Object *ob, const short totcol, boo
     ob->mat = newmatar;
     ob->matbits = newmatbits;
   }
-  /* XXX(@campbellbarton): why not realloc on shrink? */
+  /* XXX(@ideasman42): why not realloc on shrink? */
 
   ob->totcol = totcol;
   if (ob->totcol && ob->actcol == 0) {
@@ -877,8 +877,8 @@ void BKE_object_materials_test(Main *bmain, Object *ob, ID *id)
     /* Exception: In case the object is a valid data, but its obdata is an empty place-holder,
      * use object's material slots amount as reference.
      * This avoids losing materials in a local object when its linked obdata goes missing.
-     * See T92780. */
-    BKE_id_material_resize(bmain, id, (short)ob->totcol, false);
+     * See #92780. */
+    BKE_id_material_resize(bmain, id, short(ob->totcol), false);
   }
   else {
     /* Normal case: the use the obdata amount of materials slots to update the object's one. */
@@ -1090,7 +1090,7 @@ void BKE_object_material_remap(Object *ob, const uint *remap)
   else if (ELEM(ob->type, OB_CURVES_LEGACY, OB_SURF, OB_FONT)) {
     BKE_curve_material_remap(static_cast<Curve *>(ob->data), remap, ob->totcol);
   }
-  else if (ob->type == OB_GPENCIL) {
+  else if (ob->type == OB_GPENCIL_LEGACY) {
     BKE_gpencil_material_remap(static_cast<bGPdata *>(ob->data), remap, ob->totcol);
   }
   else {
@@ -1311,7 +1311,7 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
   for (Object *obt = static_cast<Object *>(bmain->objects.first); obt;
        obt = static_cast<Object *>(obt->id.next)) {
     if (obt->data == ob->data) {
-      /* Can happen when object material lists are used, see: T52953 */
+      /* Can happen when object material lists are used, see: #52953 */
       if (actcol > obt->totcol) {
         continue;
       }
@@ -1347,7 +1347,7 @@ bool BKE_object_material_slot_remove(Main *bmain, Object *ob)
     }
   }
   /* check indices from gpencil */
-  else if (ob->type == OB_GPENCIL) {
+  else if (ob->type == OB_GPENCIL_LEGACY) {
     BKE_gpencil_material_index_reassign((bGPdata *)ob->data, ob->totcol, actcol - 1);
   }
 
@@ -1374,13 +1374,13 @@ static bNode *nodetree_uv_node_recursive(bNode *node)
 }
 
 /** Bitwise filter for updating paint slots. */
-typedef enum ePaintSlotFilter {
+enum ePaintSlotFilter {
   PAINT_SLOT_IMAGE = 1 << 0,
   PAINT_SLOT_COLOR_ATTRIBUTE = 1 << 1,
-} ePaintSlotFilter;
+};
 ENUM_OPERATORS(ePaintSlotFilter, PAINT_SLOT_COLOR_ATTRIBUTE)
 
-typedef bool (*ForEachTexNodeCallback)(bNode *node, void *userdata);
+using ForEachTexNodeCallback = bool (*)(bNode *node, void *userdata);
 static bool ntree_foreach_texnode_recursive(bNodeTree *nodetree,
                                             ForEachTexNodeCallback callback,
                                             void *userdata,
@@ -1411,7 +1411,7 @@ static bool ntree_foreach_texnode_recursive(bNodeTree *nodetree,
   return true;
 }
 
-static bool count_texture_nodes_cb(bNode *UNUSED(node), void *userdata)
+static bool count_texture_nodes_cb(bNode * /*node*/, void *userdata)
 {
   (*((int *)userdata))++;
   return true;
@@ -1688,6 +1688,14 @@ void ramp_blend(int type, float r_col[3], const float fac, const float col[3])
       r_col[0] = facm * (r_col[0]) + fac * fabsf(r_col[0] - col[0]);
       r_col[1] = facm * (r_col[1]) + fac * fabsf(r_col[1] - col[1]);
       r_col[2] = facm * (r_col[2]) + fac * fabsf(r_col[2] - col[2]);
+      break;
+    case MA_RAMP_EXCLUSION:
+      r_col[0] = max_ff(facm * (r_col[0]) + fac * (r_col[0] + col[0] - 2.0f * r_col[0] * col[0]),
+                        0.0f);
+      r_col[1] = max_ff(facm * (r_col[1]) + fac * (r_col[1] + col[1] - 2.0f * r_col[1] * col[1]),
+                        0.0f);
+      r_col[2] = max_ff(facm * (r_col[2]) + fac * (r_col[2] + col[2] - 2.0f * r_col[2] * col[2]),
+                        0.0f);
       break;
     case MA_RAMP_DARK:
       r_col[0] = min_ff(r_col[0], col[0]) * fac + r_col[0] * facm;

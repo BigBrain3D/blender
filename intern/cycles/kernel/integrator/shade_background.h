@@ -113,7 +113,7 @@ ccl_device_inline void integrate_background(KernelGlobals kg,
 
     /* Background MIS weights. */
     float mis_weight = 1.0f;
-    /* Check if background light exists or if we should skip pdf. */
+    /* Check if background light exists or if we should skip PDF. */
     if (!(INTEGRATOR_STATE(state, path, flag) & PATH_RAY_MIS_SKIP) &&
         kernel_data.background.use_mis) {
       mis_weight = light_sample_mis_weight_forward_background(kg, state, path_flag);
@@ -149,7 +149,7 @@ ccl_device_inline void integrate_distant_lights(KernelGlobals kg,
             ((ls.shader & SHADER_EXCLUDE_TRANSMIT) && (path_flag & PATH_RAY_TRANSMIT)) ||
             ((ls.shader & SHADER_EXCLUDE_CAMERA) && (path_flag & PATH_RAY_CAMERA)) ||
             ((ls.shader & SHADER_EXCLUDE_SCATTER) && (path_flag & PATH_RAY_VOLUME_SCATTER)))
-          return;
+          continue;
       }
 #endif
 
@@ -159,7 +159,7 @@ ccl_device_inline void integrate_distant_lights(KernelGlobals kg,
          * generate a firefly for small lights since it is improbable. */
         const ccl_global KernelLight *klight = &kernel_data_fetch(lights, lamp);
         if (klight->use_caustics)
-          return;
+          continue;
       }
 #endif /* __MNEE__ */
 
@@ -169,7 +169,7 @@ ccl_device_inline void integrate_distant_lights(KernelGlobals kg,
       ccl_private ShaderData *emission_sd = AS_SHADER_DATA(&emission_sd_storage);
       Spectrum light_eval = light_sample_shader_eval(kg, state, emission_sd, &ls, ray_time);
       if (is_zero(light_eval)) {
-        return;
+        continue;
       }
 
       /* MIS weighting. */
@@ -180,8 +180,7 @@ ccl_device_inline void integrate_distant_lights(KernelGlobals kg,
 
       /* Write to render buffer. */
       guiding_record_background(kg, state, light_eval, mis_weight);
-      film_write_surface_emission(
-          kg, state, light_eval, mis_weight, render_buffer, kernel_data.background.lightgroup);
+      film_write_surface_emission(kg, state, light_eval, mis_weight, render_buffer, ls.group);
     }
   }
 }

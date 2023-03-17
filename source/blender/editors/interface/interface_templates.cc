@@ -39,13 +39,14 @@
 #include "BLT_translation.h"
 
 #include "BKE_action.h"
+#include "BKE_blendfile.h"
 #include "BKE_colorband.h"
 #include "BKE_colortools.h"
 #include "BKE_constraint.h"
 #include "BKE_context.h"
 #include "BKE_curveprofile.h"
 #include "BKE_global.h"
-#include "BKE_gpencil_modifier.h"
+#include "BKE_gpencil_modifier_legacy.h"
 #include "BKE_idprop.h"
 #include "BKE_idtype.h"
 #include "BKE_layer.h"
@@ -78,8 +79,6 @@
 
 #include "WM_api.h"
 #include "WM_types.h"
-
-#include "BLO_readfile.h"
 
 #include "UI_interface.h"
 #include "UI_interface_icons.h"
@@ -137,7 +136,7 @@ static int template_search_textbut_width(PointerRNA *ptr, PropertyRNA *name_prop
       estimated_width, TEMPLATE_SEARCH_TEXTBUT_MIN_WIDTH, TEMPLATE_SEARCH_TEXTBUT_MIN_WIDTH * 3);
 }
 
-static int template_search_textbut_height(void)
+static int template_search_textbut_height()
 {
   return TEMPLATE_SEARCH_TEXTBUT_HEIGHT;
 }
@@ -401,7 +400,7 @@ static bool id_search_add(const bContext *C, TemplateID *template_ui, uiSearchIt
                           name_ui,
                           id,
                           iconid,
-                          has_sep_char ? UI_BUT_HAS_SEP_CHAR : 0,
+                          has_sep_char ? int(UI_BUT_HAS_SEP_CHAR) : 0,
                           name_prefix_offset)) {
     return false;
   }
@@ -609,7 +608,7 @@ static void template_id_liboverride_hierarchy_collection_root_find_recursive(
       *r_collection_parent_best = collection;
     }
   }
-  for (CollectionParent *iter = static_cast<CollectionParent *>(collection->parents.first);
+  for (CollectionParent *iter = static_cast<CollectionParent *>(collection->runtime.parents.first);
        iter != nullptr;
        iter = iter->next) {
     if (iter->collection->id.lib != collection->id.lib && ID_IS_LINKED(iter->collection)) {
@@ -628,7 +627,8 @@ static void template_id_liboverride_hierarchy_collections_tag_recursive(
   /* Tag all local parents of the root collection, so that usages of the root collection and other
    * linked ones can be replaced by the local overrides in those parents too. */
   if (do_parents) {
-    for (CollectionParent *iter = static_cast<CollectionParent *>(root_collection->parents.first);
+    for (CollectionParent *iter =
+             static_cast<CollectionParent *>(root_collection->runtime.parents.first);
          iter != nullptr;
          iter = iter->next) {
       if (ID_IS_LINKED(iter->collection)) {
@@ -831,7 +831,7 @@ ID *ui_template_id_liboverride_hierarchy_make(
     case ID_CA:
     case ID_SPK:
     case ID_AR:
-    case ID_GD:
+    case ID_GD_LEGACY:
     case ID_CV:
     case ID_PT:
     case ID_VO:
@@ -1101,7 +1101,7 @@ static const char *template_id_browse_tip(const StructRNA *type)
         return N_("Browse Brush to be linked");
       case ID_PA:
         return N_("Browse Particle Settings to be linked");
-      case ID_GD:
+      case ID_GD_LEGACY:
         return N_("Browse Grease Pencil Data to be linked");
       case ID_MC:
         return N_("Browse Movie Clip to be linked");
@@ -1676,12 +1676,12 @@ static void template_ID_tabs(const bContext *C,
                                                0.0f,
                                                0.0f,
                                                "");
-    UI_but_funcN_set(&tab->but, template_ID_set_property_exec_fn, MEM_dupallocN(template_id), id);
-    UI_but_drag_set_id(&tab->but, id);
-    tab->but.custom_data = (void *)id;
+    UI_but_funcN_set(tab, template_ID_set_property_exec_fn, MEM_dupallocN(template_id), id);
+    UI_but_drag_set_id(tab, id);
+    tab->custom_data = (void *)id;
     tab->menu = mt;
 
-    UI_but_drawflag_enable(&tab->but, but_align);
+    UI_but_drawflag_enable(tab, but_align);
   }
 
   BLI_freelistN(&ordered);
@@ -2290,8 +2290,7 @@ void uiTemplateModifiers(uiLayout * /*layout*/, bContext *C)
 
   if (!panels_match) {
     UI_panels_free_instanced(C, region);
-    ModifierData *md = static_cast<ModifierData *>(modifiers->first);
-    for (int i = 0; md; i++, md = md->next) {
+    for (ModifierData *md = static_cast<ModifierData *>(modifiers->first); md; md = md->next) {
       const ModifierTypeInfo *mti = BKE_modifier_get_info(ModifierType(md->type));
       if (mti->panelRegister == nullptr) {
         continue;
@@ -2337,7 +2336,7 @@ void uiTemplateModifiers(uiLayout * /*layout*/, bContext *C)
 /* -------------------------------------------------------------------- */
 /** \name Constraints Template
  *
- *  Template for building the panel layout for the active object or bone's constraints.
+ * Template for building the panel layout for the active object or bone's constraints.
  * \{ */
 
 /** For building the panel UI for constraints. */
@@ -2450,9 +2449,10 @@ void uiTemplateConstraints(uiLayout * /*layout*/, bContext *C, bool use_bone_con
 
   if (!panels_match) {
     UI_panels_free_instanced(C, region);
-    bConstraint *con = (constraints == nullptr) ? nullptr :
-                                                  static_cast<bConstraint *>(constraints->first);
-    for (int i = 0; con; i++, con = con->next) {
+    for (bConstraint *con =
+             (constraints == nullptr) ? nullptr : static_cast<bConstraint *>(constraints->first);
+         con;
+         con = con->next) {
       /* Don't show invalid/legacy constraints. */
       if (con->type == CONSTRAINT_TYPE_NULL) {
         continue;
@@ -2542,8 +2542,8 @@ void uiTemplateGpencilModifiers(uiLayout * /*layout*/, bContext *C)
 
   if (!panels_match) {
     UI_panels_free_instanced(C, region);
-    GpencilModifierData *md = static_cast<GpencilModifierData *>(modifiers->first);
-    for (int i = 0; md; i++, md = md->next) {
+    for (GpencilModifierData *md = static_cast<GpencilModifierData *>(modifiers->first); md;
+         md = md->next) {
       const GpencilModifierTypeInfo *mti = BKE_gpencil_modifier_get_info(
           GpencilModifierType(md->type));
       if (mti->panelRegister == nullptr) {
@@ -2616,8 +2616,7 @@ void uiTemplateShaderFx(uiLayout * /*layout*/, bContext *C)
 
   if (!panels_match) {
     UI_panels_free_instanced(C, region);
-    ShaderFxData *fx = static_cast<ShaderFxData *>(shaderfx->first);
-    for (int i = 0; fx; i++, fx = fx->next) {
+    for (ShaderFxData *fx = static_cast<ShaderFxData *>(shaderfx->first); fx; fx = fx->next) {
       char panel_idname[MAX_NAME];
       shaderfx_panel_id(fx, panel_idname);
 
@@ -2813,7 +2812,7 @@ static eAutoPropButsReturn template_operator_property_buts_draw_single(
       /* no undo for buttons for operator redo panels */
       UI_but_flag_disable(but, UI_BUT_UNDO);
 
-      /* only for popups, see T36109. */
+      /* only for popups, see #36109. */
 
       /* if button is operator's default property, and a text-field, enable focus for it
        * - this is used for allowing operators with popups to rename stuff with fewer clicks
@@ -3183,7 +3182,7 @@ void uiTemplatePreview(uiLayout *layout,
   if (!ui_preview) {
     ui_preview = MEM_cnew<uiPreview>(__func__);
     BLI_strncpy(ui_preview->preview_id, preview_id, sizeof(ui_preview->preview_id));
-    ui_preview->height = (short)(UI_UNIT_Y * 7.6f);
+    ui_preview->height = short(UI_UNIT_Y * 7.6f);
     BLI_addtail(&region->ui_previews, ui_preview);
   }
 
@@ -3225,7 +3224,7 @@ void uiTemplatePreview(uiLayout *layout,
                 0,
                 0,
                 UI_UNIT_X * 10,
-                (short)(UI_UNIT_Y * 0.3f),
+                short(UI_UNIT_Y * 0.3f),
                 &ui_preview->height,
                 UI_UNIT_Y,
                 UI_UNIT_Y * 50.0f,
@@ -4028,7 +4027,7 @@ void uiTemplateHistogram(uiLayout *layout, PointerRNA *ptr, const char *propname
                 0,
                 0,
                 UI_UNIT_X * 10,
-                (short)(UI_UNIT_Y * 0.3f),
+                short(UI_UNIT_Y * 0.3f),
                 &hist->height,
                 UI_UNIT_Y,
                 UI_UNIT_Y * 20.0f,
@@ -4090,7 +4089,7 @@ void uiTemplateWaveform(uiLayout *layout, PointerRNA *ptr, const char *propname)
                 0,
                 0,
                 UI_UNIT_X * 10,
-                (short)(UI_UNIT_Y * 0.3f),
+                short(UI_UNIT_Y * 0.3f),
                 &scopes->wavefrm_height,
                 UI_UNIT_Y,
                 UI_UNIT_Y * 20.0f,
@@ -4152,7 +4151,7 @@ void uiTemplateVectorscope(uiLayout *layout, PointerRNA *ptr, const char *propna
                 0,
                 0,
                 UI_UNIT_X * 10,
-                (short)(UI_UNIT_Y * 0.3f),
+                short(UI_UNIT_Y * 0.3f),
                 &scopes->vecscope_height,
                 UI_UNIT_Y,
                 UI_UNIT_Y * 20.0f,
@@ -5407,8 +5406,8 @@ static void CurveProfile_buttons_layout(uiLayout *layout, PointerRNA *ptr, RNAUp
            "",
            0,
            0,
-           (short)path_width,
-           (short)path_height,
+           short(path_width),
+           short(path_height),
            profile,
            0.0f,
            1.0f,
@@ -5639,7 +5638,7 @@ void uiTemplateColorPicker(uiLayout *layout,
           hsv_but->gradient_type = UI_GRAD_HV;
           break;
       }
-      but = &hsv_but->but;
+      but = hsv_but;
       break;
 
     /* user default */
@@ -5688,7 +5687,7 @@ void uiTemplateColorPicker(uiLayout *layout,
                                                  "",
                                                  WHEEL_SIZE + 6,
                                                  0,
-                                                 14 * UI_DPI_FAC,
+                                                 14 * UI_SCALE_FAC,
                                                  WHEEL_SIZE,
                                                  ptr,
                                                  prop,
@@ -5709,7 +5708,7 @@ void uiTemplateColorPicker(uiLayout *layout,
                                                  0,
                                                  4,
                                                  WHEEL_SIZE,
-                                                 18 * UI_DPI_FAC,
+                                                 18 * UI_SCALE_FAC,
                                                  ptr,
                                                  prop,
                                                  -1,
@@ -5729,7 +5728,7 @@ void uiTemplateColorPicker(uiLayout *layout,
                                                  0,
                                                  4,
                                                  WHEEL_SIZE,
-                                                 18 * UI_DPI_FAC,
+                                                 18 * UI_SCALE_FAC,
                                                  ptr,
                                                  prop,
                                                  -1,
@@ -5749,7 +5748,7 @@ void uiTemplateColorPicker(uiLayout *layout,
                                                  0,
                                                  4,
                                                  WHEEL_SIZE,
-                                                 18 * UI_DPI_FAC,
+                                                 18 * UI_SCALE_FAC,
                                                  ptr,
                                                  prop,
                                                  -1,
@@ -5771,7 +5770,7 @@ void uiTemplateColorPicker(uiLayout *layout,
                                                  "",
                                                  WHEEL_SIZE + 6,
                                                  0,
-                                                 14 * UI_DPI_FAC,
+                                                 14 * UI_SCALE_FAC,
                                                  WHEEL_SIZE,
                                                  ptr,
                                                  prop,
@@ -5785,11 +5784,11 @@ void uiTemplateColorPicker(uiLayout *layout,
         break;
     }
 
-    hsv_but->but.custom_data = cpicker;
+    hsv_but->custom_data = cpicker;
   }
 }
 
-static void ui_template_palette_menu(bContext * /* C*/, uiLayout *layout, void * /*but_p*/)
+static void ui_template_palette_menu(bContext * /*C*/, uiLayout *layout, void * /*but_p*/)
 {
   uiLayout *row;
 
@@ -6106,7 +6105,7 @@ static char *progress_tooltip_func(bContext * /*C*/, void *argN, const char * /*
   BLI_timecode_string_from_time_simple(elapsed_str, sizeof(elapsed_str), elapsed);
 
   if (progress) {
-    const double remaining = (elapsed / (double)progress) - elapsed;
+    const double remaining = (elapsed / double(progress)) - elapsed;
     BLI_timecode_string_from_time_simple(remaining_str, sizeof(remaining_str), remaining);
   }
 
@@ -6286,7 +6285,7 @@ void uiTemplateRunningJobs(uiLayout *layout, bContext *C)
                                                                             nullptr);
 
       but_progress->progress = progress;
-      UI_but_func_tooltip_set(&but_progress->but, progress_tooltip_func, tip_arg, MEM_freeN);
+      UI_but_func_tooltip_set(but_progress, progress_tooltip_func, tip_arg, MEM_freeN);
     }
 
     if (!wm->is_interface_locked) {
@@ -6359,7 +6358,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
   UI_fontstyle_set(&style->widgetlabel);
   int width = BLF_width(style->widgetlabel.uifont_id, report->message, report->len);
   width = min_ii(int(rti->widthfac * width), width);
-  width = max_ii(width, 10 * UI_DPI_FAC);
+  width = max_ii(width, 10 * UI_SCALE_FAC);
 
   UI_block_align_begin(block);
 
@@ -6370,7 +6369,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
                  "",
                  0,
                  0,
-                 UI_UNIT_X + (6 * UI_DPI_FAC),
+                 UI_UNIT_X + (6 * UI_SCALE_FAC),
                  UI_UNIT_Y,
                  nullptr,
                  0.0f,
@@ -6386,7 +6385,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
                  UI_BTYPE_ROUNDBOX,
                  0,
                  "",
-                 UI_UNIT_X + (6 * UI_DPI_FAC),
+                 UI_UNIT_X + (6 * UI_SCALE_FAC),
                  0,
                  UI_UNIT_X + width,
                  UI_UNIT_Y,
@@ -6410,7 +6409,7 @@ void uiTemplateReportsBanner(uiLayout *layout, bContext *C)
                       "SCREEN_OT_info_log_show",
                       WM_OP_INVOKE_REGION_WIN,
                       UI_icon_from_report_type(report->type),
-                      (3 * UI_DPI_FAC),
+                      (3 * UI_SCALE_FAC),
                       0,
                       UI_UNIT_X,
                       UI_UNIT_Y,
@@ -6553,12 +6552,12 @@ void uiTemplateKeymapItemProperties(uiLayout *layout, PointerRNA *ptr)
     /* attach callbacks to compensate for missing properties update,
      * we don't know which keymap (item) is being modified there */
     for (; but; but = but->next) {
-      /* operator buttons may store props for use (file selector, T36492) */
+      /* operator buttons may store props for use (file selector, #36492) */
       if (but->rnaprop) {
         UI_but_func_set(but, keymap_item_modified, ptr->data, nullptr);
 
         /* Otherwise the keymap will be re-generated which we're trying to edit,
-         * see: T47685 */
+         * see: #47685 */
         UI_but_flag_enable(but, UI_BUT_UPDATE_DELAY);
       }
     }
@@ -6681,7 +6680,7 @@ static uiBlock *component_menu(bContext *C, ARegion *region, void *args_v)
                                                     UI_UNIT_Y,
                                                     0,
                                                     UI_style_get()),
-                                    0);
+                                    false);
 
   uiItemR(layout, &args->ptr, args->propname, UI_ITEM_R_EXPAND, "", ICON_NONE);
 
@@ -6997,7 +6996,7 @@ int uiTemplateRecentFiles(uiLayout *layout, int rows)
     uiItemFullO(layout,
                 "WM_OT_open_mainfile",
                 filename,
-                BLO_has_bfile_extension(filename) ? ICON_FILE_BLEND : ICON_FILE_BACKUP,
+                BKE_blendfile_extension_check(filename) ? ICON_FILE_BLEND : ICON_FILE_BACKUP,
                 nullptr,
                 WM_OP_INVOKE_DEFAULT,
                 0,

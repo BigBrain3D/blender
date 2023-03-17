@@ -366,6 +366,9 @@ const uchar *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colorid)
         case TH_EDGE:
           cp = ts->edge;
           break;
+        case TH_EDGE_WIDTH:
+          cp = &ts->edge_width;
+          break;
         case TH_EDGE_SELECT:
           cp = ts->edge_select;
           break;
@@ -392,6 +395,9 @@ const uchar *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colorid)
           break;
         case TH_FACE_SELECT:
           cp = ts->face_select;
+          break;
+        case TH_FACE_RETOPOLOGY:
+          cp = ts->face_retopology;
           break;
         case TH_FACE_BACK:
           cp = ts->face_back;
@@ -803,6 +809,9 @@ const uchar *UI_ThemeGetColorPtr(bTheme *btheme, int spacetype, int colorid)
         case TH_CAMERA_PATH:
           cp = ts->camera_path;
           break;
+        case TH_CAMERA_PASSEPARTOUT:
+          cp = ts->camera_passepartout;
+          break;
         case TH_LOCK_MARKER:
           cp = ts->lock_marker;
           break;
@@ -1141,51 +1150,51 @@ void UI_FontThemeColor(int fontid, int colorid)
 float UI_GetThemeValuef(int colorid)
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, g_theme_state.spacetype, colorid);
-  return (float(cp[0]));
+  return float(cp[0]);
 }
 
 int UI_GetThemeValue(int colorid)
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, g_theme_state.spacetype, colorid);
-  return (int(cp[0]));
+  return int(cp[0]);
 }
 
 float UI_GetThemeValueTypef(int colorid, int spacetype)
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, spacetype, colorid);
-  return (float(cp[0]));
+  return float(cp[0]);
 }
 
 int UI_GetThemeValueType(int colorid, int spacetype)
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, spacetype, colorid);
-  return (int(cp[0]));
+  return int(cp[0]);
 }
 
 void UI_GetThemeColor3fv(int colorid, float col[3])
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, g_theme_state.spacetype, colorid);
-  col[0] = (float(cp[0])) / 255.0f;
-  col[1] = (float(cp[1])) / 255.0f;
-  col[2] = (float(cp[2])) / 255.0f;
+  col[0] = float(cp[0]) / 255.0f;
+  col[1] = float(cp[1]) / 255.0f;
+  col[2] = float(cp[2]) / 255.0f;
 }
 
 void UI_GetThemeColor4fv(int colorid, float col[4])
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, g_theme_state.spacetype, colorid);
-  col[0] = (float(cp[0])) / 255.0f;
-  col[1] = (float(cp[1])) / 255.0f;
-  col[2] = (float(cp[2])) / 255.0f;
-  col[3] = (float(cp[3])) / 255.0f;
+  col[0] = float(cp[0]) / 255.0f;
+  col[1] = float(cp[1]) / 255.0f;
+  col[2] = float(cp[2]) / 255.0f;
+  col[3] = float(cp[3]) / 255.0f;
 }
 
 void UI_GetThemeColorType4fv(int colorid, int spacetype, float col[4])
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, spacetype, colorid);
-  col[0] = (float(cp[0])) / 255.0f;
-  col[1] = (float(cp[1])) / 255.0f;
-  col[2] = (float(cp[2])) / 255.0f;
-  col[3] = (float(cp[3])) / 255.0f;
+  col[0] = float(cp[0]) / 255.0f;
+  col[1] = float(cp[1]) / 255.0f;
+  col[2] = float(cp[2]) / 255.0f;
+  col[3] = float(cp[3]) / 255.0f;
 }
 
 void UI_GetThemeColorShade3fv(int colorid, int offset, float col[3])
@@ -1361,9 +1370,9 @@ void UI_GetThemeColor4ubv(int colorid, uchar col[4])
 void UI_GetThemeColorType3fv(int colorid, int spacetype, float col[3])
 {
   const uchar *cp = UI_ThemeGetColorPtr(g_theme_state.theme, spacetype, colorid);
-  col[0] = (float(cp[0])) / 255.0f;
-  col[1] = (float(cp[1])) / 255.0f;
-  col[2] = (float(cp[2])) / 255.0f;
+  col[0] = float(cp[0]) / 255.0f;
+  col[1] = float(cp[1]) / 255.0f;
+  col[2] = float(cp[2]) / 255.0f;
 }
 
 void UI_GetThemeColorType3ubv(int colorid, int spacetype, uchar col[3])
@@ -1459,7 +1468,7 @@ void UI_ThemeClearColor(int colorid)
 int UI_ThemeMenuShadowWidth()
 {
   bTheme *btheme = UI_GetTheme();
-  return int(btheme->tui.menu_shadow_width * UI_DPI_FAC);
+  return int(btheme->tui.menu_shadow_width * UI_SCALE_FAC);
 }
 
 void UI_make_axis_color(const uchar src_col[3], uchar dst_col[3], const char axis)

@@ -174,6 +174,8 @@ class SkyTextureNode : public TextureNode {
     /* Clamping for numerical precision. */
     return fmaxf(sun_size, 0.0005f);
   }
+
+  float get_sun_average_radiance();
 };
 
 class OutputNode : public ShaderNode {
@@ -721,6 +723,8 @@ class EmissionNode : public ShaderNode {
   NODE_SOCKET_API(float3, color)
   NODE_SOCKET_API(float, strength)
   NODE_SOCKET_API(float, surface_mix_weight)
+
+  bool from_auto_conversion = false;
 };
 
 class BackgroundNode : public ShaderNode {

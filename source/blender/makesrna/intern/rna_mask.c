@@ -103,7 +103,7 @@ static void rna_Mask_update_parent(Main *bmain, Scene *scene, PointerRNA *ptr)
   rna_Mask_update_data(bmain, scene, ptr);
 }
 
-/* NOTE: this function exists only to avoid id refcounting. */
+/* NOTE: this function exists only to avoid id reference-counting. */
 static void rna_MaskParent_id_set(PointerRNA *ptr,
                                   PointerRNA value,
                                   struct ReportList *UNUSED(reports))
@@ -826,7 +826,7 @@ static void rna_def_mask_splines(BlenderRNA *brna)
                                  NULL,
                                  NULL);
   RNA_def_property_flag(prop, PROP_EDITABLE | PROP_NEVER_UNLINK);
-  RNA_def_property_ui_text(prop, "Active Spline", "Active spline of masking layer");
+  RNA_def_property_ui_text(prop, "Active Point", "Active point of masking layer");
 }
 
 static void rna_def_maskSplinePoints(BlenderRNA *brna)

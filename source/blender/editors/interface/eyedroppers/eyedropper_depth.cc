@@ -175,7 +175,7 @@ static void depthdropper_depth_sample_pt(bContext *C,
         view3d_operator_needs_opengl(C);
 
         if (ED_view3d_autodist(depsgraph, region, v3d, mval, co, true, nullptr)) {
-          const float mval_center_fl[2] = {(float)region->winx / 2, (float)region->winy / 2};
+          const float mval_center_fl[2] = {float(region->winx) / 2, float(region->winy) / 2};
           float co_align[3];
 
           /* quick way to get view-center aligned point */
@@ -185,7 +185,7 @@ static void depthdropper_depth_sample_pt(bContext *C,
 
           BKE_unit_value_as_string(ddr->name,
                                    sizeof(ddr->name),
-                                   (double)*r_depth,
+                                   double(*r_depth),
                                    4,
                                    B_UNIT_LENGTH,
                                    &scene->unit,
@@ -215,7 +215,7 @@ static void depthdropper_depth_set_accum(bContext *C, DepthDropper *ddr)
 {
   float depth = ddr->accum_depth;
   if (ddr->accum_tot) {
-    depth /= (float)ddr->accum_tot;
+    depth /= float(ddr->accum_tot);
   }
   depthdropper_depth_set(C, ddr, depth);
 }
@@ -302,7 +302,7 @@ static int depthdropper_invoke(bContext *C, wmOperator *op, const wmEvent * /*ev
   /* init */
   if (depthdropper_init(C, op)) {
     wmWindow *win = CTX_wm_window(C);
-    /* Workaround for de-activating the button clearing the cursor, see T76794 */
+    /* Workaround for de-activating the button clearing the cursor, see #76794 */
     UI_context_active_but_clear(C, win, CTX_wm_region(C));
     WM_cursor_modal_set(win, WM_CURSOR_EYEDROPPER);
 

@@ -217,7 +217,7 @@ GHOST_IWindow *GHOST_SystemWin32::createWindow(const char *title,
                                                uint32_t height,
                                                GHOST_TWindowState state,
                                                GHOST_GLSettings glSettings,
-                                               const bool exclusive,
+                                               const bool /*exclusive*/,
                                                const bool is_dialog,
                                                const GHOST_IWindow *parentWindow)
 {
@@ -424,10 +424,9 @@ bool GHOST_SystemWin32::processEvents(bool waitForEvent)
 
     processTrackpad();
 
-    /* PeekMessage above is allowed to dispatch messages to the wndproc without us
+    /* `PeekMessage` above is allowed to dispatch messages to the `wndproc` without us
      * noticing, so we need to check the event manager here to see if there are
-     * events waiting in the queue.
-     */
+     * events waiting in the queue. */
     hasEventHandled |= this->m_eventManager->getNumEvents() > 0;
 
   } while (waitForEvent && !hasEventHandled);
@@ -566,10 +565,10 @@ GHOST_TKey GHOST_SystemWin32::hardKey(RAWINPUT const &raw, bool *r_key_down)
 /**
  * \note this function can be extended to include other exotic cases as they arise.
  *
- * This function was added in response to bug T25715.
- * This is going to be a long list T42426.
+ * This function was added in response to bug #25715.
+ * This is going to be a long list #42426.
  */
-GHOST_TKey GHOST_SystemWin32::processSpecialKey(short vKey, short scanCode) const
+GHOST_TKey GHOST_SystemWin32::processSpecialKey(short vKey, short /*scanCode*/) const
 {
   GHOST_TKey key = GHOST_kKeyUnknown;
   if (vKey == 0xFF) {
@@ -1049,9 +1048,9 @@ void GHOST_SystemWin32::processPointerEvent(
   }
 }
 
-GHOST_EventCursor *GHOST_SystemWin32::processCursorEvent(GHOST_WindowWin32 *window)
+GHOST_EventCursor *GHOST_SystemWin32::processCursorEvent(GHOST_WindowWin32 *window,
+                                                         const int32_t screen_co[2])
 {
-  int32_t x_screen, y_screen;
   GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
 
   if (window->getTabletData().Active != GHOST_kTabletModeNone) {
@@ -1059,8 +1058,7 @@ GHOST_EventCursor *GHOST_SystemWin32::processCursorEvent(GHOST_WindowWin32 *wind
     return NULL;
   }
 
-  system->getCursorPosition(x_screen, y_screen);
-
+  int32_t x_screen = screen_co[0], y_screen = screen_co[1];
   if (window->getCursorGrabModeIsWarp()) {
     /* WORKAROUND:
      * Sometimes Windows ignores `SetCursorPos()` or `SendInput()` calls or the mouse event is
@@ -1081,11 +1079,11 @@ GHOST_EventCursor *GHOST_SystemWin32::processCursorEvent(GHOST_WindowWin32 *wind
       if (window->getCursorGrabMode() == GHOST_kGrabHide) {
         window->getClientBounds(bounds);
 
-        /* WARNING(@campbellbarton): The current warping logic fails to warp on every event,
+        /* WARNING(@ideasman42): The current warping logic fails to warp on every event,
          * so the box needs to small enough not to let the cursor escape the window but large
          * enough that the cursor isn't being warped every time.
          * If this was not the case it would be less trouble to simply warp the cursor to the
-         * center of the screen on every motion, see: D16558 (alternative fix for T102346). */
+         * center of the screen on every motion, see: D16558 (alternative fix for #102346). */
         const int32_t subregion_div = 4; /* One quarter of the region. */
         const int32_t size[2] = {bounds.getWidth(), bounds.getHeight()};
         const int32_t center[2] = {(bounds.m_l + bounds.m_r) / 2, (bounds.m_t + bounds.m_b) / 2};
@@ -1150,7 +1148,9 @@ GHOST_EventCursor *GHOST_SystemWin32::processCursorEvent(GHOST_WindowWin32 *wind
                                GHOST_TABLET_DATA_NONE);
 }
 
-void GHOST_SystemWin32::processWheelEvent(GHOST_WindowWin32 *window, WPARAM wParam, LPARAM lParam)
+void GHOST_SystemWin32::processWheelEvent(GHOST_WindowWin32 *window,
+                                          WPARAM wParam,
+                                          LPARAM /*lParam*/)
 {
   GHOST_SystemWin32 *system = (GHOST_SystemWin32 *)getSystem();
 
@@ -1180,7 +1180,7 @@ GHOST_EventKey *GHOST_SystemWin32::processKeyEvent(GHOST_WindowWin32 *window, RA
   GHOST_TKey key = system->hardKey(raw, &key_down);
   GHOST_EventKey *event;
 
-  /* NOTE(@campbellbarton): key repeat in WIN32 also applies to modifier-keys.
+  /* NOTE(@ideasman42): key repeat in WIN32 also applies to modifier-keys.
    * Check for this case and filter out modifier-repeat.
    * Typically keyboard events are *not* filtered as part of GHOST's event handling.
    * As other GHOST back-ends don't have the behavior, it's simplest not to send them through.
@@ -1211,16 +1211,16 @@ GHOST_EventKey *GHOST_SystemWin32::processKeyEvent(GHOST_WindowWin32 *window, RA
     const bool ctrl_pressed = has_state && state[VK_CONTROL] & 0x80;
     const bool alt_pressed = has_state && state[VK_MENU] & 0x80;
 
-    if (!key_down) {
-      /* Pass. */
-    }
+    /* We can be here with !key_down if processing dead keys (diacritics). See #103119. */
+
     /* No text with control key pressed (Alt can be used to insert special characters though!). */
-    else if (ctrl_pressed && !alt_pressed) {
+    if (ctrl_pressed && !alt_pressed) {
       /* Pass. */
     }
     /* Don't call #ToUnicodeEx on dead keys as it clears the buffer and so won't allow diacritical
-     * composition. */
-    else if (MapVirtualKeyW(vk, 2) != 0) {
+     * composition. XXX: we are not checking return of MapVirtualKeyW for high bit set, which is
+     * what is supposed to indicate dead keys. But this is working now so approach cautiously. */
+    else if (MapVirtualKeyW(vk, MAPVK_VK_TO_CHAR) != 0) {
       wchar_t utf16[3] = {0};
       int r;
       /* TODO: #ToUnicodeEx can respond with up to 4 utf16 chars (only 2 here).
@@ -1234,6 +1234,10 @@ GHOST_EventKey *GHOST_SystemWin32::processKeyEvent(GHOST_WindowWin32 *window, RA
         else if (r == -1) {
           utf8_char[0] = '\0';
         }
+      }
+      if (!key_down) {
+        /* Clear or wm_event_add_ghostevent will warn of unexpected data on key up. */
+        utf8_char[0] = '\0';
       }
     }
 
@@ -1824,7 +1828,13 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           if (!window->m_mousePresent) {
             WINTAB_PRINTF("HWND %p mouse enter\n", window->getHWND());
             TRACKMOUSEEVENT tme = {sizeof(tme)};
+            /* Request WM_MOUSELEAVE message when the cursor leaves the client area. */
             tme.dwFlags = TME_LEAVE;
+            if (system->m_autoFocus) {
+              /* Request WM_MOUSEHOVER message after 100ms when in the client area. */
+              tme.dwFlags |= TME_HOVER;
+              tme.dwHoverTime = 100;
+            }
             tme.hwndTrack = hwnd;
             TrackMouseEvent(&tme);
             window->m_mousePresent = true;
@@ -1834,8 +1844,40 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
             }
           }
 
-          event = processCursorEvent(window);
+          const int32_t window_co[2] = {GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+          int32_t screen_co[2];
+          window->clientToScreen(UNPACK2(window_co), UNPACK2(screen_co));
+          event = processCursorEvent(window, screen_co);
 
+          break;
+        }
+        case WM_MOUSEHOVER: {
+          /* Mouse Tracking is now off. TrackMouseEvent restarts in MouseMove. */
+          window->m_mousePresent = false;
+
+          /* Auto-focus only occurs within Blender windows, not with _other_ applications. */
+          HWND old_hwnd = ::GetFocus();
+          if (hwnd != old_hwnd) {
+            HWND new_parent = ::GetParent(hwnd);
+            HWND old_parent = ::GetParent(old_hwnd);
+            if (hwnd == old_parent || old_hwnd == new_parent) {
+              /* Child to its parent, parent to its child. */
+              ::SetFocus(hwnd);
+            }
+            else if (new_parent != HWND_DESKTOP && new_parent == old_parent) {
+              /* Between siblings of same parent. */
+              ::SetFocus(hwnd);
+            }
+            else if (!new_parent && !old_parent) {
+              /* Between main windows that don't overlap. */
+              RECT new_rect, old_rect, dest_rect;
+              ::GetWindowRect(hwnd, &new_rect);
+              ::GetWindowRect(old_hwnd, &old_rect);
+              if (!IntersectRect(&dest_rect, &new_rect, &old_rect)) {
+                ::SetFocus(hwnd);
+              }
+            }
+          }
           break;
         }
         case WM_MOUSEWHEEL: {
@@ -1876,7 +1918,10 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
           WINTAB_PRINTF("HWND %p mouse leave\n", window->getHWND());
           window->m_mousePresent = false;
           if (window->getTabletData().Active == GHOST_kTabletModeNone) {
-            event = processCursorEvent(window);
+            /* FIXME: document why the cursor motion event on mouse leave is needed. */
+            int32_t screen_co[2] = {0, 0};
+            system->getCursorPosition(screen_co[0], screen_co[1]);
+            event = processCursorEvent(window, screen_co);
           }
           GHOST_Wintab *wt = window->getWintab();
           if (wt) {
@@ -2173,7 +2218,7 @@ LRESULT WINAPI GHOST_SystemWin32::s_wndProc(HWND hwnd, uint msg, WPARAM wParam, 
   return lResult;
 }
 
-char *GHOST_SystemWin32::getClipboard(bool selection) const
+char *GHOST_SystemWin32::getClipboard(bool /*selection*/) const
 {
   if (IsClipboardFormatAvailable(CF_UNICODETEXT) && OpenClipboard(NULL)) {
     wchar_t *buffer;

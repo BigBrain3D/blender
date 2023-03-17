@@ -41,7 +41,7 @@ static void node_declare(NodeDeclarationBuilder &b)
       .default_value(0.5f)
       .min(0.0f)
       .subtype(PROP_DISTANCE)
-      .supports_field();
+      .field_on_all();
   b.add_output<decl::Geometry>(N_("Volume"));
 }
 
@@ -209,14 +209,18 @@ static void initialize_volume_component_from_points(GeoNodeExecParams &params,
     }
   }
 
+  if (positions.is_empty()) {
+    return;
+  }
+
   const float max_radius = *std::max_element(radii.begin(), radii.end());
   const float voxel_size = compute_voxel_size(params, positions, max_radius);
-  if (voxel_size == 0.0f || positions.is_empty()) {
+  const double determinant = std::pow(double(voxel_size), 3.0);
+  if (!BKE_volume_grid_determinant_valid(determinant)) {
     return;
   }
 
   Volume *volume = reinterpret_cast<Volume *>(BKE_id_new_nomain(ID_VO, nullptr));
-  BKE_volume_init_grids(volume);
 
   const float density = params.get_input<float>("Density");
   convert_to_grid_index_space(voxel_size, positions, radii);

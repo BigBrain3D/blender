@@ -113,6 +113,9 @@ void Session::start()
 
 void Session::cancel(bool quick)
 {
+  /* Cancel any long running device operations (e.g. shader compilations). */
+  device->cancel();
+
   /* Check if session thread is rendering. */
   const bool rendering = is_session_thread_rendering();
 
@@ -286,19 +289,24 @@ RenderWork Session::run_update_for_next_iteration()
   RenderWork render_work;
 
   thread_scoped_lock scene_lock(scene->mutex);
-  thread_scoped_lock reset_lock(delayed_reset_.mutex);
 
   bool have_tiles = true;
   bool switched_to_new_tile = false;
+  bool did_reset = false;
 
-  const bool did_reset = delayed_reset_.do_reset;
-  if (delayed_reset_.do_reset) {
-    thread_scoped_lock buffers_lock(buffers_mutex_);
-    do_delayed_reset();
+  /* Perform delayed reset if requested. */
+  {
+    thread_scoped_lock reset_lock(delayed_reset_.mutex);
+    if (delayed_reset_.do_reset) {
+      did_reset = true;
 
-    /* After reset make sure the tile manager is at the first big tile. */
-    have_tiles = tile_manager_.next();
-    switched_to_new_tile = true;
+      thread_scoped_lock buffers_lock(buffers_mutex_);
+      do_delayed_reset();
+
+      /* After reset make sure the tile manager is at the first big tile. */
+      have_tiles = tile_manager_.next();
+      switched_to_new_tile = true;
+    }
   }
 
   /* Update number of samples in the integrator.
@@ -401,6 +409,16 @@ RenderWork Session::run_update_for_next_iteration()
     path_trace_->load_kernels();
     path_trace_->alloc_work_memory();
 
+    /* Wait for device to be ready (e.g. finish any background compilations). */
+    string device_status;
+    while (!device->is_ready(device_status)) {
+      progress.set_status(device_status);
+      if (progress.get_cancel()) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    }
+
     progress.add_skip_time(update_timer, params.background);
   }
 
@@ -489,7 +507,7 @@ void Session::do_delayed_reset()
   params = delayed_reset_.session_params;
   buffer_params_ = delayed_reset_.buffer_params;
 
-  /* Store parameters used for buffers access outside of scene graph.  */
+  /* Store parameters used for buffers access outside of scene graph. */
   buffer_params_.samples = params.samples;
   buffer_params_.exposure = scene->film->get_exposure();
   buffer_params_.use_approximate_shadow_catcher =
@@ -686,6 +704,12 @@ void Session::update_status_time(bool show_pause, bool show_done)
   else {
     substatus = status_append(substatus,
                               string_printf("Sample %d/%d", current_sample, num_samples));
+  }
+
+  /* Append any device-specific status (such as background kernel optimization) */
+  string device_status;
+  if (device->is_ready(device_status) && !device_status.empty()) {
+    substatus += string_printf(" (%s)", device_status.c_str());
   }
 
   /* TODO(sergey): Denoising status from the path trace. */

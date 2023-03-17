@@ -340,7 +340,7 @@ void RE_SwapResult(Render *re, RenderResult **rr)
 {
   /* for keeping render buffers */
   if (re) {
-    SWAP(RenderResult *, re->result, *rr);
+    std::swap(re->result, *rr);
   }
 }
 
@@ -862,7 +862,7 @@ void RE_test_break_cb(Render *re, void *handle, bool (*f)(void *handle))
 
 void RE_gl_context_create(Render *re)
 {
-  /* Needs to be created in the main ogl thread. */
+  /* Needs to be created in the main OpenGL thread. */
   re->gl_context = WM_opengl_context_create();
   /* So we activate the window's one afterwards. */
   wm_window_reset_drawable();
@@ -870,7 +870,7 @@ void RE_gl_context_create(Render *re)
 
 void RE_gl_context_destroy(Render *re)
 {
-  /* Needs to be called from the thread which used the ogl context for rendering. */
+  /* Needs to be called from the thread which used the OpenGL context for rendering. */
   if (re->gl_context) {
     if (re->gpu_context) {
       WM_opengl_context_activate(re->gl_context);
@@ -2126,6 +2126,7 @@ void RE_RenderAnim(Render *re,
 
     mh = BKE_movie_handle_get(rd.im_format.imtype);
     if (mh == nullptr) {
+      render_pipeline_free(re);
       BKE_report(re->reports, RPT_ERROR, "Movie format unsupported");
       return;
     }
@@ -2519,7 +2520,6 @@ bool RE_layers_have_name(struct RenderResult *result)
     default:
       return true;
   }
-  return false;
 }
 
 bool RE_passes_have_name(struct RenderLayer *rl)

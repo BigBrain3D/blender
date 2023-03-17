@@ -10,6 +10,9 @@
 #ifndef KERNEL_STRUCT_MEMBER
 #  define KERNEL_STRUCT_MEMBER(parent, type, name)
 #endif
+#ifndef KERNEL_STRUCT_MEMBER_DONT_SPECIALIZE
+#  define KERNEL_STRUCT_MEMBER_DONT_SPECIALIZE
+#endif
 
 /* Background. */
 
@@ -97,8 +100,6 @@ KERNEL_STRUCT_MEMBER(film, int, pass_emission)
 KERNEL_STRUCT_MEMBER(film, int, pass_background)
 KERNEL_STRUCT_MEMBER(film, int, pass_ao)
 KERNEL_STRUCT_MEMBER(film, float, pass_alpha_threshold)
-KERNEL_STRUCT_MEMBER(film, int, pass_shadow)
-KERNEL_STRUCT_MEMBER(film, float, pass_shadow_scale)
 KERNEL_STRUCT_MEMBER(film, int, pass_shadow_catcher)
 KERNEL_STRUCT_MEMBER(film, int, pass_shadow_catcher_sample_count)
 KERNEL_STRUCT_MEMBER(film, int, pass_shadow_catcher_matte)
@@ -132,9 +133,6 @@ KERNEL_STRUCT_MEMBER(film, int, use_approximate_shadow_catcher)
 KERNEL_STRUCT_MEMBER(film, int, pass_guiding_color)
 KERNEL_STRUCT_MEMBER(film, int, pass_guiding_probability)
 KERNEL_STRUCT_MEMBER(film, int, pass_guiding_avg_roughness)
-/* Padding. */
-KERNEL_STRUCT_MEMBER(film, int, pad1)
-KERNEL_STRUCT_MEMBER(film, int, pad2)
 KERNEL_STRUCT_END(KernelFilm)
 
 /* Integrator. */
@@ -143,6 +141,7 @@ KERNEL_STRUCT_BEGIN(KernelIntegrator, integrator)
 /* Emission. */
 KERNEL_STRUCT_MEMBER(integrator, int, use_direct_light)
 KERNEL_STRUCT_MEMBER(integrator, int, use_light_mis)
+KERNEL_STRUCT_MEMBER(integrator, int, use_light_tree)
 KERNEL_STRUCT_MEMBER(integrator, int, num_lights)
 KERNEL_STRUCT_MEMBER(integrator, int, num_distant_lights)
 KERNEL_STRUCT_MEMBER(integrator, int, num_background_lights)
@@ -183,8 +182,12 @@ KERNEL_STRUCT_MEMBER(integrator, float, sample_clamp_indirect)
 KERNEL_STRUCT_MEMBER(integrator, int, use_caustics)
 /* Sampling pattern. */
 KERNEL_STRUCT_MEMBER(integrator, int, sampling_pattern)
-KERNEL_STRUCT_MEMBER(integrator, int, pmj_sequence_size)
 KERNEL_STRUCT_MEMBER(integrator, float, scrambling_distance)
+/* Sobol pattern. */
+KERNEL_STRUCT_MEMBER_DONT_SPECIALIZE
+KERNEL_STRUCT_MEMBER(integrator, int, tabulated_sobol_sequence_size)
+KERNEL_STRUCT_MEMBER_DONT_SPECIALIZE
+KERNEL_STRUCT_MEMBER(integrator, int, sobol_index_mask)
 /* Volume render. */
 KERNEL_STRUCT_MEMBER(integrator, int, use_volumes)
 KERNEL_STRUCT_MEMBER(integrator, int, volume_max_steps)
@@ -208,8 +211,6 @@ KERNEL_STRUCT_MEMBER(integrator, int, use_guiding_mis_weights)
 
 /* Padding. */
 KERNEL_STRUCT_MEMBER(integrator, int, pad1)
-KERNEL_STRUCT_MEMBER(integrator, int, pad2)
-KERNEL_STRUCT_MEMBER(integrator, int, pad3)
 KERNEL_STRUCT_END(KernelIntegrator)
 
 /* SVM. For shader specialization. */
@@ -221,4 +222,5 @@ KERNEL_STRUCT_END(KernelSVMUsage)
 
 #undef KERNEL_STRUCT_BEGIN
 #undef KERNEL_STRUCT_MEMBER
+#undef KERNEL_STRUCT_MEMBER_DONT_SPECIALIZE
 #undef KERNEL_STRUCT_END

@@ -156,7 +156,7 @@ static void block_align_proximity_compute(ButAlign *butal, ButAlign *butal_other
       delta_side_opp = max_ff(fabsf(*butal->borders[side_opp] - *butal_other->borders[side]),
                               FLT_MIN);
       if (delta_side_opp < delta) {
-        SWAP(int, side, side_opp);
+        std::swap(side, side_opp);
         delta = delta_side_opp;
       }
 
@@ -396,7 +396,7 @@ void ui_block_align_calc(uiBlock *block, const ARegion *region)
 
   /* Note that this is typically less than ~20, and almost always under ~100.
    * Even so, we can't ensure this value won't exceed available stack memory.
-   * Fallback to allocation instead of using #alloca, see: T78636. */
+   * Fallback to allocation instead of using #alloca, see: #78636. */
   ButAlign butal_array_buf[256];
   if (num_buttons <= ARRAY_SIZE(butal_array_buf)) {
     butal_array = butal_array_buf;
@@ -405,7 +405,7 @@ void ui_block_align_calc(uiBlock *block, const ARegion *region)
     butal_array = static_cast<ButAlign *>(
         MEM_mallocN(sizeof(*butal_array) * num_buttons, __func__));
   }
-  memset(butal_array, 0, sizeof(*butal_array) * (size_t)num_buttons);
+  memset(butal_array, 0, sizeof(*butal_array) * size_t(num_buttons));
 
   /* Second loop: we initialize our ButAlign data for each button. */
   butal = butal_array;
@@ -424,7 +424,7 @@ void ui_block_align_calc(uiBlock *block, const ARegion *region)
   /* This will give us ButAlign items regrouped by align group, vertical and horizontal location.
    * Note that, given how buttons are defined in UI code,
    * butal_array shall already be "nearly sorted"... */
-  qsort(butal_array, (size_t)num_buttons, sizeof(*butal_array), ui_block_align_butal_cmp);
+  qsort(butal_array, size_t(num_buttons), sizeof(*butal_array), ui_block_align_butal_cmp);
 
   /* Third loop: for each pair of buttons in the same align group,
    * we compute their potential proximity. Note that each pair is checked only once, and that we
@@ -537,7 +537,7 @@ static bool buts_are_horiz(uiBut *but1, uiBut *but2)
   float dx, dy;
 
   /* simple case which can fail if buttons shift apart
-   * with proportional layouts, see: T38602. */
+   * with proportional layouts, see: #38602. */
   if ((but1->rect.ymin == but2->rect.ymin) && (but1->rect.xmin != but2->rect.xmin)) {
     return true;
   }

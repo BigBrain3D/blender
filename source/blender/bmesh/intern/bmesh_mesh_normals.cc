@@ -22,7 +22,7 @@
 #include "BKE_customdata.h"
 #include "BKE_editmesh.h"
 #include "BKE_global.h"
-#include "BKE_mesh.h"
+#include "BKE_mesh.hh"
 
 #include "intern/bmesh_private.h"
 
@@ -139,9 +139,9 @@ static void bm_vert_calc_normals_impl(BMVert *v)
   normalize_v3_v3(v_no, v->co);
 }
 
-static void bm_vert_calc_normals_cb(void *UNUSED(userdata),
+static void bm_vert_calc_normals_cb(void * /*userdata*/,
                                     MempoolIterData *mp_v,
-                                    const TaskParallelTLS *__restrict UNUSED(tls))
+                                    const TaskParallelTLS *__restrict /*tls*/)
 {
   BMVert *v = (BMVert *)mp_v;
   bm_vert_calc_normals_impl(v);
@@ -192,7 +192,7 @@ static void bm_vert_calc_normals_with_coords(BMVert *v, BMVertsCalcNormalsWithCo
 
 static void bm_vert_calc_normals_with_coords_cb(void *userdata,
                                                 MempoolIterData *mp_v,
-                                                const TaskParallelTLS *__restrict UNUSED(tls))
+                                                const TaskParallelTLS *__restrict /*tls*/)
 {
   BMVertsCalcNormalsWithCoordsData *data = static_cast<BMVertsCalcNormalsWithCoordsData *>(
       userdata);
@@ -224,9 +224,9 @@ static void bm_mesh_verts_calc_normals(BMesh *bm,
   }
 }
 
-static void bm_face_calc_normals_cb(void *UNUSED(userdata),
+static void bm_face_calc_normals_cb(void * /*userdata*/,
                                     MempoolIterData *mp_f,
-                                    const TaskParallelTLS *__restrict UNUSED(tls))
+                                    const TaskParallelTLS *__restrict /*tls*/)
 {
   BMFace *f = (BMFace *)mp_f;
 
@@ -262,20 +262,20 @@ void BM_mesh_normals_update(BMesh *bm)
  * \{ */
 
 static void bm_partial_faces_parallel_range_calc_normals_cb(
-    void *userdata, const int iter, const TaskParallelTLS *__restrict UNUSED(tls))
+    void *userdata, const int iter, const TaskParallelTLS *__restrict /*tls*/)
 {
   BMFace *f = ((BMFace **)userdata)[iter];
   BM_face_calc_normal(f, f->no);
 }
 
 static void bm_partial_verts_parallel_range_calc_normal_cb(
-    void *userdata, const int iter, const TaskParallelTLS *__restrict UNUSED(tls))
+    void *userdata, const int iter, const TaskParallelTLS *__restrict /*tls*/)
 {
   BMVert *v = ((BMVert **)userdata)[iter];
   bm_vert_calc_normals_impl(v);
 }
 
-void BM_mesh_normals_update_with_partial_ex(BMesh *UNUSED(bm),
+void BM_mesh_normals_update_with_partial_ex(BMesh * /*bm*/,
                                             const BMPartialUpdate *bmpinfo,
                                             const struct BMeshNormalsUpdate_Params *params)
 {
@@ -405,7 +405,7 @@ static void bm_mesh_edges_sharp_tag(BMesh *bm,
 
 void BM_edges_sharp_from_angle_set(BMesh *bm, const float split_angle)
 {
-  if (split_angle >= (float)M_PI) {
+  if (split_angle >= float(M_PI)) {
     /* Nothing to do! */
     return;
   }
@@ -715,8 +715,8 @@ static int bm_mesh_loops_calc_normals_for_loop(BMesh *bm,
 
             while ((clnor = static_cast<short *>(BLI_SMALLSTACK_POP(clnors)))) {
               // print_v2("org clnor", clnor);
-              clnor[0] = (short)clnors_avg[0];
-              clnor[1] = (short)clnors_avg[1];
+              clnor[0] = short(clnors_avg[0]);
+              clnor[1] = short(clnors_avg[1]);
             }
             // print_v2("new clnors", clnors_avg);
           }
@@ -919,7 +919,7 @@ static void bm_mesh_loops_calc_normals_for_vert_with_clnors(BMesh *bm,
         BLI_linklist_prepend_alloca(&loops_of_vert, l_curr);
         loops_of_vert_count += 1;
 
-        const uint index_test = (uint)BM_elem_index_get(l_curr);
+        const uint index_test = uint(BM_elem_index_get(l_curr));
         if (index_best > index_test) {
           index_best = index_test;
           link_best = loops_of_vert;
@@ -935,7 +935,7 @@ static void bm_mesh_loops_calc_normals_for_vert_with_clnors(BMesh *bm,
      * The order doesn't matter, so swap the links as it's simpler than tracking
      * reference to `link_best`. */
     if (link_best != loops_of_vert) {
-      SWAP(void *, link_best->link, loops_of_vert->link);
+      std::swap(link_best->link, loops_of_vert->link);
     }
   }
 
@@ -1053,11 +1053,11 @@ static void bm_mesh_loops_calc_normals_for_vert_without_clnors(
 }
 
 /**
- * BMesh version of BKE_mesh_normals_loop_split() in `mesh_evaluate.cc`
+ * BMesh version of bke::mesh::normals_calc_loop() in `mesh_evaluate.cc`
  * Will use first clnors_data array, and fallback to cd_loop_clnors_offset
  * (use nullptr and -1 to not use clnors).
  *
- * \note This sets #BM_ELEM_TAG which is used in tool code (e.g. T84426).
+ * \note This sets #BM_ELEM_TAG which is used in tool code (e.g. #84426).
  * we could add a low-level API flag for this, see #BM_ELEM_API_FLAG_ENABLE and friends.
  */
 static void bm_mesh_loops_calc_normals__single_threaded(BMesh *bm,
@@ -1192,7 +1192,7 @@ static void bm_mesh_loops_calc_normals_for_vert_init_fn(const void *__restrict u
 }
 
 static void bm_mesh_loops_calc_normals_for_vert_reduce_fn(const void *__restrict userdata,
-                                                          void *__restrict UNUSED(chunk_join),
+                                                          void *__restrict /*chunk_join*/,
                                                           void *__restrict chunk)
 {
   auto *data = static_cast<const BMLoopsCalcNormalsWithCoordsData *>(userdata);
@@ -1382,7 +1382,7 @@ static bool bm_mesh_loops_split_lnor_fans(BMesh *bm,
                                           MLoopNorSpaceArray *lnors_spacearr,
                                           const float (*new_lnors)[3])
 {
-  BLI_bitmap *done_loops = BLI_BITMAP_NEW((size_t)bm->totloop, __func__);
+  BLI_bitmap *done_loops = BLI_BITMAP_NEW(size_t(bm->totloop), __func__);
   bool changed = false;
 
   BLI_assert(lnors_spacearr->data_type == MLNOR_SPACEARR_BMLOOP_PTR);
@@ -1404,7 +1404,7 @@ static bool bm_mesh_loops_split_lnor_fans(BMesh *bm,
       /* Notes:
        * * In case of mono-loop smooth fan, we have nothing to do.
        * * Loops in this linklist are ordered (in reversed order compared to how they were
-       *   discovered by BKE_mesh_normals_loop_split(), but this is not a problem).
+       *   discovered by bke::mesh::normals_calc_loop(), but this is not a problem).
        *   Which means if we find a mismatching clnor,
        *   we know all remaining loops will have to be in a new, different smooth fan/lnor space.
        * * In smooth fan case, we compare each clnor against a ref one,
@@ -1449,7 +1449,7 @@ static bool bm_mesh_loops_split_lnor_fans(BMesh *bm,
       /* We also have to check between last and first loops,
        * otherwise we may miss some sharp edges here!
        * This is just a simplified version of above while loop.
-       * See T45984. */
+       * See #45984. */
       loops = lnors_spacearr->lspacearr[i]->loops;
       if (loops && org_nor) {
         BMLoop *ml = static_cast<BMLoop *>(loops->link);
@@ -1480,7 +1480,7 @@ static void bm_mesh_loops_assign_normal_data(BMesh *bm,
                                              const int cd_loop_clnors_offset,
                                              const float (*new_lnors)[3])
 {
-  BLI_bitmap *done_loops = BLI_BITMAP_NEW((size_t)bm->totloop, __func__);
+  BLI_bitmap *done_loops = BLI_BITMAP_NEW(size_t(bm->totloop), __func__);
 
   BLI_SMALLSTACK_DECLARE(clnors_data, short *);
 
@@ -1540,7 +1540,7 @@ static void bm_mesh_loops_assign_normal_data(BMesh *bm,
           BLI_BITMAP_ENABLE(done_loops, lidx);
         }
 
-        mul_v3_fl(avg_nor, 1.0f / (float)avg_nor_count);
+        mul_v3_fl(avg_nor, 1.0f / float(avg_nor_count));
         BKE_lnor_space_custom_normal_to_data(
             lnors_spacearr->lspacearr[i], avg_nor, clnor_data_tmp);
 
